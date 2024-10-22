@@ -8,11 +8,65 @@
 ![GitHub stars]
 ![GitHub forks]
 ![GitHub License]
-![GitHub commit activity]
-![GitHub last commit]
+
 
 在线批量导出微信公众号文章，支持内嵌的音视频导出，无需搭建任何环境，可100%还原文章样式，支持私有部署。
 
+交流群(QQ): `991482155`
+
+
+## ⚠️⚠️⚠️ 注意
+从 2024-10-21 开始，下载机制进行了调整，**音视频的下载** 不再经由代理服务器处理，而改为需要配合浏览器插件解决跨域问题。
+
+这里推荐用 [ModHeader插件](https://modheader.com/)，插件的配置如下:
+![img.png](img.png)
+
+<details>
+<summary>配置说明</summary>
+
+请求头中添加`Referer`，值为`https://mp.weixin.qq.com/`, 解决页面上图片显示及视频资源下载问题。
+
+响应头中添加`Access-Control-Allow-Origin`，值为`*`, 解决下载资源接口跨域问题。
+
+过滤器添加2个域名：`wechat-article-exporter.deno.dev`和`localhost`，表示只有这些域名发起的请求才会应用这些配置。`localhost`用于本地开发调试。
+
+可复制以下配置直接导入到 ModHeader 插件中:
+```json
+[
+  {
+    "headers": [
+      {
+        "appendMode": false,
+        "enabled": true,
+        "name": "Referer",
+        "value": "https://mp.weixin.qq.com/"
+      }
+    ],
+    "initiatorDomainFilters": [
+      {
+        "domain": "wechat-article-exporter.deno.dev",
+        "enabled": true
+      },
+      {
+        "domain": "localhost",
+        "enabled": true
+      }
+    ],
+    "respHeaders": [
+      {
+        "appendMode": false,
+        "enabled": true,
+        "name": "Access-Control-Allow-Origin",
+        "value": "*"
+      }
+    ],
+    "shortTitle": "1",
+    "title": "公众号文章导出",
+    "version": 2
+  }
+]
+```
+</details>
 
 ## :dart: 特性
 
@@ -25,6 +79,7 @@
 - [x] 支持合集下载
 - [x] 支持内嵌的音视频下载
 - [x] 支持图片分享消息
+- [x] 支持视频分享消息
 - [ ] 支持导出评论(需要获取目标公众号的key)
 - [ ] 支持订阅机制，根据指定规则自动下载文章
 
@@ -98,17 +153,16 @@
 在公众号后台写文章时支持搜索其他公众号的文章功能，以此来实现抓取指定公众号所有文章的目的。
 
 
-
 ## :earth_americas: 关于代理池
 
 数据的下载采用代理池的思路，以便解决跨域、防盗链、加速等一系列问题。
 
 目前有以下代理节点:
 ```
-https://vproxy-01.deno.dev
-https://vproxy-02.deno.dev
-https://vproxy-03.deno.dev
-https://vproxy-04.deno.dev
+https://vproxy-01.deno.dev (已失效)
+https://vproxy-02.deno.dev (已失效)
+https://vproxy-03.deno.dev (本月额度已用完，刷新时间: 2024-11-02 at 19:59:12)
+https://vproxy-04.deno.dev (本月额度已用完，刷新时间: 2024-11-02 at 19:59:12)
 https://vproxy-05.deno.dev
 https://vproxy-06.deno.dev
 https://vproxy-07.deno.dev
@@ -297,10 +351,6 @@ MIT
 [Github forks]: https://img.shields.io/github/forks/jooooock/wechat-article-exporter?style=social&label=Fork&style=plastic
 
 [Github License]: https://img.shields.io/github/license/jooooock/wechat-article-exporter?label=License
-
-[Github commit activity]: https://img.shields.io/github/commit-activity/w/jooooock/wechat-article-exporter
-
-[Github last commit]: https://img.shields.io/github/last-commit/jooooock/wechat-article-exporter
 
 [微信公众平台]: https://mp.weixin.qq.com/cgi-bin/registermidpage?action=index&lang=zh_CN
 

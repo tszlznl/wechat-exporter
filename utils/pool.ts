@@ -1,9 +1,9 @@
-import {sleep} from "@antfu/utils";
-import dayjs from "dayjs";
+import {sleep} from "@antfu/utils"
+import dayjs from "dayjs"
 import {AVAILABLE_PROXY_LIST} from '~/config'
-import type {DownloadableArticle} from "~/types/types";
-import {updateProxiesCache} from "~/store/proxy";
-import type {AudioResource} from "~/types/video";
+import type {DownloadableArticle} from "~/types/types"
+import type {AudioResource, VideoResource} from "~/types/video"
+import {updateProxiesCache} from "~/store/proxy"
 
 /**
  * 代理实例
@@ -32,7 +32,13 @@ export interface ProxyInstance {
 }
 
 // 代理下载的资源
-type DownloadResource = string | HTMLLinkElement | HTMLImageElement | DownloadableArticle | AudioResource
+type DownloadResource =
+    | string
+    | HTMLLinkElement
+    | HTMLImageElement
+    | DownloadableArticle
+    | AudioResource
+    | VideoResource
 
 // 资源下载函数，返回资源大小
 type DownloadFn<T extends DownloadResource> = (resource: T, proxy: string) => Promise<number>
@@ -298,7 +304,7 @@ export function formatDownloadResult(label: string, results: DownloadResult | Do
         size: result.size,
         '耗时': result.totalTime,
         '重试次数': result.attempts,
-        '是否下载成': result.success,
+        '是否下载成功': result.success,
     }))
     console.table(downloadResults)
 }

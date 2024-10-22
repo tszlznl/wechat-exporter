@@ -40,17 +40,21 @@ export function formatItemShowType(type: number) {
  * @param proxy 代理地址
  * @param timeout 超时时间(单位: 秒)，默认 30
  */
-async function downloadAssetWithProxy<T extends Blob | string>(url: string, proxy: string, timeout = 30) {
-    const result = await $fetch<T>(`${proxy}?url=${encodeURIComponent(url)}`, {
+async function downloadAssetWithProxy<T extends Blob | string>(url: string, proxy: string | undefined, timeout = 30) {
+    let targetURL = proxy ? `${proxy}?url=${encodeURIComponent(url)}` : url
+    targetURL = targetURL.replace(/^http:\/\//, 'https://')
+    const result = await $fetch<T>(targetURL, {
         retry: 0,
         timeout: timeout * 1000,
     })
 
     // 统计代理下载资源流量
-    if (result instanceof Blob) {
-        pool.pool.incrementTraffic(proxy, result.size)
-    } else {
-        pool.pool.incrementTraffic(proxy, new Blob([result]).size)
+    if (proxy) {
+        if (result instanceof Blob) {
+            pool.pool.incrementTraffic(proxy, result.size)
+        } else {
+            pool.pool.incrementTraffic(proxy, new Blob([result]).size)
+        }
     }
 
     return result
@@ -218,6 +222,75 @@ export async function packHTMLAssets(html: string, title: string, zip?: JSZip) {
         }
     }
 
+    // 视频分享消息
+    const $js_common_share_desc = $jsArticleContent.querySelector('#js_common_share_desc')
+    if ($js_common_share_desc) {
+        // 分享视频摘要
+        bodyCls += 'zh_CN wx_wap_page wx_wap_desktop_fontsize_2 page_share_video white_video_page discuss_tab appmsg_skin_default appmsg_style_default pages_skin_pc'
+        const videoContentMatchResult = html.match(/(?<code>var\s+videoContentNoEncode\s*=\s*window\.a_value_which_never_exists\s*\|\|\s*(?<value>'[^']+'))/s)
+        if (videoContentMatchResult && videoContentMatchResult.groups && videoContentMatchResult.groups.value) {
+            const code = 'window.videoContentNoEncode = ' + videoContentMatchResult.groups.value
+            eval(code)
+            let desc = (window as any).videoContentNoEncode
+            desc = desc.replace(/\r/g, '').replace(/\n/g, '<br>')
+            $js_common_share_desc.innerHTML = desc
+        }
+    }
+    const $js_mpvedio = $jsArticleContent.querySelector('.js_video_channel_container > #js_mpvedio')
+    if ($js_mpvedio) {
+        // 分享视频
+        // poster
+        let poster = ''
+        const mpVideoCoverUrlMatchResult = html.match(/(?<code>window\.__mpVideoCoverUrl\s*=\s*'[^']*';)/s)
+        if (mpVideoCoverUrlMatchResult && mpVideoCoverUrlMatchResult.groups && mpVideoCoverUrlMatchResult.groups.code) {
+            const code = mpVideoCoverUrlMatchResult.groups.code
+            eval(code)
+            poster = (window as any).__mpVideoCoverUrl
+        }
+
+        // video info
+        let videoUrl = ''
+        const mpVideoTransInfoMatchResult = html.match(/(?<code>window\.__mpVideoTransInfo\s*=\s*\[.+?];)/s)
+        if (mpVideoTransInfoMatchResult && mpVideoTransInfoMatchResult.groups && mpVideoTransInfoMatchResult.groups.code) {
+            const code = mpVideoTransInfoMatchResult.groups.code
+            eval(code)
+            const mpVideoTransInfo = (window as any).__mpVideoTransInfo
+            if (Array.isArray(mpVideoTransInfo) && mpVideoTransInfo.length > 0) {
+                mpVideoTransInfo.forEach((trans: any) => {
+                    trans.url = trans.url.replace(/&amp;/g, '&')
+                })
+
+                // 这里为了节省流量需要控制清晰度
+                videoUrl = mpVideoTransInfo[mpVideoTransInfo.length - 1].url
+
+                // 下载资源
+                const videoURLMap = new Map<string, string>()
+                const resourceDownloadFn = async (url: string, proxy: string) => {
+                    const videoData = await downloadAssetWithProxy<Blob>(url, proxy, 10)
+                    const uuid = new Date().getTime() + Math.random().toString()
+                    const ext = mime.getExtension(videoData.type)
+                    zip.file(`assets/${uuid}.${ext}`, videoData)
+
+                    videoURLMap.set(url, `./assets/${uuid}.${ext}`)
+                    return videoData.size
+                }
+                await measureExecutionTime('视频资源下载结果:', async () => {
+                    const urls: string[] = []
+                    if (poster) {
+                        urls.push(poster)
+                    }
+                    urls.push(videoUrl)
+                    return await pool.downloads<string>(urls, resourceDownloadFn, false)
+                })
+
+                const div = document.createElement('div')
+                div.style.cssText = 'height: 381px;background: #000;border-radius: 4px; overflow: hidden;margin-bottom: 12px;'
+                div.innerHTML = `<video src="${videoURLMap.get(videoUrl)}" poster="${videoURLMap.get(poster)}" controls style="width: 100%;height: 100%;"></video>`
+                $js_mpvedio.appendChild(div)
+            }
+        }
+    }
+
     // 渲染发布时间
     function __setPubTime(oriTimestamp: number, dom: HTMLElement) {
         const dateObj = new Date(oriTimestamp * 1000);
@@ -329,7 +402,7 @@ export async function packHTMLAssets(html: string, title: string, zip?: JSZip) {
                 })
             })
 
-            return await pool.downloads<AudioResource>(assets, audioResourceDownloadFn)
+            return await pool.downloads<AudioResource>(assets, audioResourceDownloadFn, false)
         })
     }
 
@@ -364,7 +437,7 @@ export async function packHTMLAssets(html: string, title: string, zip?: JSZip) {
                     urls.push(videoPageInfo.mp_video_trans_info[0].url)
                 }
             })
-            return await pool.downloads<string>(urls, resourceDownloadFn)
+            return await pool.downloads<string>(urls, resourceDownloadFn, false)
         })
 
         const videoIframes = $jsArticleContent.querySelectorAll('iframe.video_iframe')
